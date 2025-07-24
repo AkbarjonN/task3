@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+
 import crypto from "crypto";
 import readline from "readline";
 
@@ -147,7 +147,7 @@ class Game {
     console.log("Welcome to the non-transitive dice game!");
     this.printDice();
 
-    // Decide who goes first (0=user, 1=computer)
+ 
     console.log("\nDeciding who selects dice first...");
     const frp = new FairRandom(2);
     const firstUserNum = await frp.getResult();
@@ -160,7 +160,7 @@ class Game {
 
     if (userFirst) {
       userDice = await this.selectDice(null);
-      // computer picks different dice randomly
+
       compDice = [...Array(this.dice.length).keys()].filter(i => i !== userDice)[Math.floor(Math.random() * (this.dice.length - 1))];
       console.log(`Computer selects Dice #${compDice + 1}`);
     } else {
@@ -172,13 +172,13 @@ class Game {
     console.log(`Your dice: #${userDice + 1}`);
     console.log(`Computer dice: #${compDice + 1}`);
 
-    // User roll
+ 
     console.log("\nYour turn to roll...");
     const userRoll = new FairRandom(this.dice[userDice].faces.length);
     const userRollRes = await userRoll.getResult();
     console.log(`You rolled face: ${this.dice[userDice].faces[userRollRes]}`);
 
-    // Computer roll
+
     console.log("\nComputer's turn to roll...");
     const compRoll = new FairRandom(this.dice[compDice].faces.length);
     compRoll.showHMAC();
@@ -187,7 +187,7 @@ class Game {
     const compRollRes = (compRoll.number + compUserNum) % this.dice[compDice].faces.length;
     console.log(`Computer rolled face: ${this.dice[compDice].faces[compRollRes]}`);
 
-    // Decide winner
+
     if (this.dice[userDice].faces[userRollRes] > this.dice[compDice].faces[compRollRes]) {
       console.log("\nYou win!");
     } else if (this.dice[userDice].faces[userRollRes] < this.dice[compDice].faces[compRollRes]) {
