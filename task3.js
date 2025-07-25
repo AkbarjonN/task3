@@ -1,4 +1,3 @@
-
 import crypto from "crypto";
 import readline from "readline";
 
@@ -24,60 +23,6 @@ class DiceParser {
   }
 }
 
-class FairRandom {
-  constructor(range) {
-    this.range = range;
-    this.key = crypto.randomBytes(32);
-    this.number = this.uniformRandom();
-    this.hmac = this.calcHMAC(this.number);
-  }
-  uniformRandom() {
-    const max = BigInt(this.range);
-    const bytesNeeded = 4;
-    while (true) {
-      const rnd = BigInt("0x" + crypto.randomBytes(bytesNeeded).toString("hex"));
-      if (rnd < (BigInt(2) ** BigInt(bytesNeeded * 8)) - ((BigInt(2) ** BigInt(bytesNeeded * 8)) % max)) {
-        return Number(rnd % max);
-      }
-    }
-  }
-  calcHMAC(num) {
-    const h = crypto.createHmac("sha3-256", this.key);
-    const buf = Buffer.alloc(4);
-    buf.writeUInt32BE(num);
-    h.update(buf);
-    return h.digest("hex");
-  }
-  showHMAC() {
-    console.log("HMAC:", this.hmac);
-  }
-  reveal() {
-    console.log("Key (hex):", this.key.toString("hex"));
-    console.log("Computer number:", this.number);
-  }
-  async getUserNumber() {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const question = (q) => new Promise(res => rl.question(q, res));
-    let val;
-    while (true) {
-      let answer = await question(`Enter your number [0-${this.range - 1}]: `);
-      if (/^\d+$/.test(answer)) {
-        val = Number(answer);
-        if (val >= 0 && val < this.range) break;
-      }
-      console.log("Invalid input, try again.");
-    }
-    rl.close();
-    return val;
-  }
-  async getResult() {
-    this.showHMAC();
-    const userNum = await this.getUserNumber();
-    this.reveal();
-    return (userNum + this.number) % this.range;
-  }
-}
-
 class Probability {
   static winProb(d1, d2) {
     let wins = 0, total = 0;
@@ -92,12 +37,15 @@ class Game {
   constructor(dice) {
     this.dice = dice;
   }
+
   printDice() {
     this.dice.forEach((d, i) => console.log(`Dice #${i + 1}: ${d.faces.join(",")}`));
   }
+
   async selectDice(exclude) {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     const question = (q) => new Promise(res => rl.question(q, res));
+
     while (true) {
       console.log("Select dice:");
       this.dice.forEach((d, i) => {
@@ -106,6 +54,7 @@ class Game {
       });
       console.log(" h) Help");
       console.log(" e) Exit");
+
       const ans = await question("Choice: ");
       if (ans === "e") {
         rl.close();
@@ -124,6 +73,7 @@ class Game {
       console.log("Invalid choice.");
     }
   }
+
   printProbabilityTable() {
     console.log("\nWinning probabilities (%)");
     const n = this.dice.length;
@@ -143,28 +93,46 @@ class Game {
     }
     console.log("");
   }
+
+  async getUserNumber(max) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const question = (q) => new Promise(res => rl.question(q, res));
+    let val;
+    while (true) {
+      let answer = await question(`Enter a number between 0 and ${max - 1}: `);
+      if (/^\d+$/.test(answer)) {
+        val = Number(answer);
+        if (val >= 0 && val < max) break;
+      }
+      console.log("Invalid input, try again.");
+    }
+    rl.close();
+    return val;
+  }
+
   async play() {
     console.log("Welcome to the non-transitive dice game!");
     this.printDice();
 
- 
     console.log("\nDeciding who selects dice first...");
-    const frp = new FairRandom(2);
-    const firstUserNum = await frp.getResult();
-    const firstSum = (frp.number + firstUserNum) % 2;
-    let userFirst = firstSum === 0;
-    console.log(`Result (mod 2): ${firstSum}`);
+    const userNum = await this.getUserNumber(2);
+    const compNum = crypto.randomInt(0, 2);
+    const result = (userNum + compNum) % 2;
+    const userFirst = result === 0;
+
+    console.log(`Your number: ${userNum}`);
+    console.log(`Computer's number: ${compNum}`);
+    console.log(`Result (mod 2): ${result}`);
     console.log(userFirst ? "You select dice first." : "Computer selects dice first.");
 
     let userDice, compDice;
-
     if (userFirst) {
       userDice = await this.selectDice(null);
-
-      compDice = [...Array(this.dice.length).keys()].filter(i => i !== userDice)[Math.floor(Math.random() * (this.dice.length - 1))];
+      const choices = this.dice.map((_, i) => i).filter(i => i !== userDice);
+      compDice = choices[crypto.randomInt(0, choices.length)];
       console.log(`Computer selects Dice #${compDice + 1}`);
     } else {
-      compDice = Math.floor(Math.random() * this.dice.length);
+      compDice = crypto.randomInt(0, this.dice.length);
       console.log(`Computer selects Dice #${compDice + 1}`);
       userDice = await this.selectDice(compDice);
     }
@@ -172,25 +140,20 @@ class Game {
     console.log(`Your dice: #${userDice + 1}`);
     console.log(`Computer dice: #${compDice + 1}`);
 
- 
     console.log("\nYour turn to roll...");
-    const userRoll = new FairRandom(this.dice[userDice].faces.length);
-    const userRollRes = await userRoll.getResult();
-    console.log(`You rolled face: ${this.dice[userDice].faces[userRollRes]}`);
-
+    const userRollIdx = crypto.randomInt(0, this.dice[userDice].faces.length);
+    console.log(`You rolled face: ${this.dice[userDice].faces[userRollIdx]}`);
 
     console.log("\nComputer's turn to roll...");
-    const compRoll = new FairRandom(this.dice[compDice].faces.length);
-    compRoll.showHMAC();
-    const compUserNum = await compRoll.getUserNumber();
-    compRoll.reveal();
-    const compRollRes = (compRoll.number + compUserNum) % this.dice[compDice].faces.length;
-    console.log(`Computer rolled face: ${this.dice[compDice].faces[compRollRes]}`);
+    const compRollIdx = crypto.randomInt(0, this.dice[compDice].faces.length);
+    console.log(`Computer rolled face: ${this.dice[compDice].faces[compRollIdx]}`);
 
+    const userVal = this.dice[userDice].faces[userRollIdx];
+    const compVal = this.dice[compDice].faces[compRollIdx];
 
-    if (this.dice[userDice].faces[userRollRes] > this.dice[compDice].faces[compRollRes]) {
+    if (userVal > compVal) {
       console.log("\nYou win!");
-    } else if (this.dice[userDice].faces[userRollRes] < this.dice[compDice].faces[compRollRes]) {
+    } else if (userVal < compVal) {
       console.log("\nComputer wins!");
     } else {
       console.log("\nIt's a tie!");
@@ -208,3 +171,4 @@ class Game {
     process.exit(1);
   }
 })();
+
